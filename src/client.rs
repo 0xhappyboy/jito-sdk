@@ -1,10 +1,10 @@
+use crate::JitoError;
 use crate::global::BUNDLE_RPC;
 use crate::global::TRANSACTIONS_POOL_RPC;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use solana_sdk::{pubkey::Pubkey, transaction::Transaction};
-
 pub enum ClientEnum {
     Bundle,
     Tip,
@@ -22,14 +22,6 @@ impl ClientEnum {}
 #[derive(Debug, Clone)]
 pub struct BundleClient {
     client: Client,
-}
-
-#[derive(Debug)]
-pub enum BundleError {
-    RequestFailed(String),
-    SerializationError(String),
-    BundleRejected(String),
-    ApiError(String),
 }
 
 #[derive(Debug, Serialize)]
@@ -52,17 +44,12 @@ struct BundleParams {
 #[derive(Debug, Deserialize)]
 struct BundleResponse {
     result: Option<BundleResult>,
-    error: Option<JitoError>,
+    error: Option<JitoError<String>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct BundleResult {
     bundle_id: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct JitoError {
-    message: String,
 }
 
 impl BundleClient {
@@ -77,7 +64,7 @@ impl BundleClient {
         transactions: Vec<Transaction>,
         tip_account: Option<Pubkey>,
         tip_amount: Option<u64>,
-    ) -> Result<String, BundleError> {
+    ) -> Result<String, JitoError<String>> {
         let encoded_txs: Vec<String> = transactions
             .into_iter()
             .map(|tx| {
@@ -94,7 +81,7 @@ impl BundleClient {
                 serialized.extend_from_slice(&message_data);
                 Ok(BASE64_STANDARD.encode(&serialized))
             })
-            .collect::<Result<Vec<_>, BundleError>>()?;
+            .collect::<Result<Vec<_>, JitoError<String>>>()?;
         let params = BundleParams {
             txs: encoded_txs,
             tip_account: tip_account.map(|pk| pk.to_string()),
@@ -112,11 +99,14 @@ impl BundleClient {
             .json(&request)
             .send()
             .await
-            .map_err(|e| BundleError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::BundleError(format!("{:?}", e)))?;
         self.handle_response(response).await
     }
 
-    pub async fn get_bundle_status(&self, bundle_id: &str) -> Result<BundleStatus, BundleError> {
+    pub async fn get_bundle_status(
+        &self,
+        bundle_id: &str,
+    ) -> Result<BundleStatus, JitoError<String>> {
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 1,
@@ -129,38 +119,41 @@ impl BundleClient {
             .json(&request)
             .send()
             .await
-            .map_err(|e| BundleError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::BundleError(format!("{:?}", e)))?;
 
         let status_response: BundleStatusResponse = response
             .json()
             .await
-            .map_err(|e| BundleError::ApiError(e.to_string()))?;
+            .map_err(|e| JitoError::BundleError(e.to_string()))?;
         Ok(status_response.result)
     }
 
-    async fn handle_response(&self, response: reqwest::Response) -> Result<String, BundleError> {
+    async fn handle_response(
+        &self,
+        response: reqwest::Response,
+    ) -> Result<String, JitoError<String>> {
         if !response.status().is_success() {
-            return Err(BundleError::ApiError(format!(
+            return Err(JitoError::BundleError(format!(
                 "HTTP {}: {}",
                 response.status(),
                 response
                     .text()
                     .await
-                    .map_err(|e| BundleError::ApiError(format!("{:?}", e)))?
+                    .map_err(|e| JitoError::BundleError(format!("{:?}", e)))?
             )));
         }
         let bundle_response: BundleResponse = response
             .json()
             .await
-            .map_err(|e| BundleError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::BundleError(format!("{:?}", e)))?;
 
         if let Some(error) = bundle_response.error {
-            return Err(BundleError::BundleRejected(error.message));
+            return Err(JitoError::BundleError(format!("{:?}", error)));
         }
         bundle_response
             .result
             .map(|r| r.bundle_id)
-            .ok_or_else(|| BundleError::ApiError("No result in response".to_string()))
+            .ok_or_else(|| JitoError::BundleError("No result in response".to_string()))
     }
 }
 
@@ -184,13 +177,6 @@ pub struct TipClient {
     client: Client,
 }
 
-#[derive(Debug)]
-pub enum TipError {
-    RequestFailed(String),
-    ApiError(String),
-    NoTipAccounts,
-}
-
 #[derive(Debug, Deserialize)]
 struct TipAccountsResponse {
     tip_accounts: Vec<TipAccount>,
@@ -208,37 +194,37 @@ impl TipClient {
             client: Client::new(),
         }
     }
-    pub async fn get_tip_accounts(&self) -> Result<Vec<TipAccount>, TipError> {
+    pub async fn get_tip_accounts(&self) -> Result<Vec<TipAccount>, JitoError<String>> {
         let response = self
             .client
             .get(TIP_RPC)
             .send()
             .await
-            .map_err(|e| TipError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::TipError(format!("{:?}", e)))?;
         if !response.status().is_success() {
-            return Err(TipError::ApiError(format!(
+            return Err(JitoError::TipError(format!(
                 "HTTP {}: {}",
                 response.status(),
                 response
                     .text()
                     .await
-                    .map_err(|e| TipError::ApiError(format!("{:?}", e)))?
+                    .map_err(|e| JitoError::TipError(format!("{:?}", e)))?
             )));
         }
         let tip_response: TipAccountsResponse = response
             .json()
             .await
-            .map_err(|e| TipError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::TipError(format!("{:?}", e)))?;
         Ok(tip_response.tip_accounts)
     }
-    pub async fn get_optimal_tip_account(&self) -> Result<TipAccount, TipError> {
+    pub async fn get_optimal_tip_account(&self) -> Result<TipAccount, JitoError<String>> {
         let tip_accounts = self.get_tip_accounts().await?;
         tip_accounts
             .into_iter()
             .max_by_key(|account| account.lamports_per_signature)
-            .ok_or(TipError::NoTipAccounts)
+            .ok_or(JitoError::TipError("get tip accounts error".to_string()))
     }
-    pub async fn get_recommended_tip(&self) -> Result<u64, TipError> {
+    pub async fn get_recommended_tip(&self) -> Result<u64, JitoError<String>> {
         let optimal_account = self.get_optimal_tip_account().await?;
         Ok(optimal_account.lamports_per_signature)
     }
@@ -250,12 +236,6 @@ use crate::global::BLOCK_EGNINE_RPC;
 #[derive(Debug, Clone)]
 pub struct BlockEngineClient {
     client: Client,
-}
-
-#[derive(Debug)]
-pub enum BlockEngineError {
-    RequestFailed(String),
-    ApiError(String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -278,36 +258,36 @@ impl BlockEngineClient {
         }
     }
 
-    pub async fn get_block_engine_info(&self) -> Result<BlockEngineResponse, BlockEngineError> {
+    pub async fn get_block_engine_info(&self) -> Result<BlockEngineResponse, JitoError<String>> {
         let response = self
             .client
             .get(BLOCK_EGNINE_RPC)
             .send()
             .await
-            .map_err(|e| BlockEngineError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::BlockEngineError(format!("{:?}", e)))?;
         if !response.status().is_success() {
-            return Err(BlockEngineError::ApiError(format!(
+            return Err(JitoError::BlockEngineError(format!(
                 "HTTP {}: {}",
                 response.status(),
                 response
                     .text()
                     .await
-                    .map_err(|e| BlockEngineError::ApiError(format!("{:?}", e)))?
+                    .map_err(|e| JitoError::BlockEngineError(format!("{:?}", e)))?
             )));
         }
         let engine_response: BlockEngineResponse = response
             .json()
             .await
-            .map_err(|e| BlockEngineError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::BlockEngineError(format!("{:?}", e)))?;
         Ok(engine_response)
     }
 
-    pub async fn get_current_leaders(&self) -> Result<Vec<Leader>, BlockEngineError> {
+    pub async fn get_current_leaders(&self) -> Result<Vec<Leader>, JitoError<String>> {
         let info = self.get_block_engine_info().await?;
         Ok(info.leaders)
     }
 
-    pub async fn get_network_congestion(&self) -> Result<f64, BlockEngineError> {
+    pub async fn get_network_congestion(&self) -> Result<f64, JitoError<String>> {
         let info = self.get_block_engine_info().await?;
         Ok(info.congestion)
     }
@@ -319,12 +299,6 @@ use crate::global::VALIDATORS_RPC;
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
     client: Client,
-}
-
-#[derive(Debug)]
-pub enum ValidatorsError {
-    RequestFailed(String),
-    ApiError(String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -347,31 +321,31 @@ impl ValidatorsClient {
         }
     }
 
-    pub async fn get_validators(&self) -> Result<Vec<Validator>, ValidatorsError> {
+    pub async fn get_validators(&self) -> Result<Vec<Validator>, JitoError<String>> {
         let response = self
             .client
             .get(VALIDATORS_RPC)
             .send()
             .await
-            .map_err(|e| ValidatorsError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::ValidatorsError(format!("{:?}", e)))?;
         if !response.status().is_success() {
-            return Err(ValidatorsError::ApiError(format!(
+            return Err(JitoError::ValidatorsError(format!(
                 "HTTP {}: {}",
                 response.status(),
                 response
                     .text()
                     .await
-                    .map_err(|e| ValidatorsError::ApiError(format!("{:?}", e)))?
+                    .map_err(|e| JitoError::ValidatorsError(format!("{:?}", e)))?
             )));
         }
         let validators_response: ValidatorsResponse = response
             .json()
             .await
-            .map_err(|e| ValidatorsError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::ValidatorsError(format!("{:?}", e)))?;
         Ok(validators_response.validators)
     }
 
-    pub async fn get_active_validators(&self) -> Result<Vec<Validator>, ValidatorsError> {
+    pub async fn get_active_validators(&self) -> Result<Vec<Validator>, JitoError<String>> {
         let validators = self.get_validators().await?;
         Ok(validators.into_iter().filter(|v| v.active).collect())
     }
@@ -381,12 +355,6 @@ impl ValidatorsClient {
 #[derive(Debug, Clone)]
 pub struct TransactionsPoolClient {
     client: Client,
-}
-
-#[derive(Debug)]
-pub enum TransactionsPoolError {
-    RequestFailed(String),
-    ApiError(String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -411,36 +379,36 @@ impl TransactionsPoolClient {
 
     pub async fn get_mempool_transactions(
         &self,
-    ) -> Result<Vec<MemPoolTransaction>, TransactionsPoolError> {
+    ) -> Result<Vec<MemPoolTransaction>, JitoError<String>> {
         let response = self
             .client
             .get(TRANSACTIONS_POOL_RPC)
             .send()
             .await
-            .map_err(|e| TransactionsPoolError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::TransactionsPoolError(format!("{:?}", e)))?;
 
         if !response.status().is_success() {
-            return Err(TransactionsPoolError::ApiError(format!(
+            return Err(JitoError::TransactionsPoolError(format!(
                 "HTTP {}: {}",
                 response.status(),
                 response
                     .text()
                     .await
-                    .map_err(|e| TransactionsPoolError::ApiError(format!("{:?}", e)))?
+                    .map_err(|e| JitoError::TransactionsPoolError(format!("{:?}", e)))?
             )));
         }
 
         let tx_response: TransactionsResponse = response
             .json()
             .await
-            .map_err(|e| TransactionsPoolError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::TransactionsPoolError(format!("{:?}", e)))?;
         Ok(tx_response.transactions)
     }
 
     pub async fn get_high_priority_transactions(
         &self,
         min_priority_fee: u64,
-    ) -> Result<Vec<MemPoolTransaction>, TransactionsPoolError> {
+    ) -> Result<Vec<MemPoolTransaction>, JitoError<String>> {
         let transactions = self.get_mempool_transactions().await?;
         Ok(transactions
             .into_iter()
@@ -457,13 +425,6 @@ pub struct HealthClient {
     client: Client,
 }
 
-#[derive(Debug)]
-pub enum HealthError {
-    RequestFailed(String),
-    ApiError(String),
-    Unhealthy(String),
-}
-
 #[derive(Debug, Deserialize)]
 pub struct HealthResponse {
     pub status: String,
@@ -478,32 +439,32 @@ impl HealthClient {
         }
     }
 
-    pub async fn check_health(&self) -> Result<HealthResponse, HealthError> {
+    pub async fn check_health(&self) -> Result<HealthResponse, JitoError<String>> {
         let response = self
             .client
             .get(HEALTH_RPC)
             .send()
             .await
-            .map_err(|e| HealthError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::HealthError(format!("{:?}", e)))?;
 
         if !response.status().is_success() {
-            return Err(HealthError::ApiError(format!(
+            return Err(JitoError::HealthError(format!(
                 "HTTP {}: {}",
                 response.status(),
                 response
                     .text()
                     .await
-                    .map_err(|e| HealthError::ApiError(format!("{:?}", e)))?
+                    .map_err(|e| JitoError::HealthError(format!("{:?}", e)))?
             )));
         }
 
         let health_response: HealthResponse = response
             .json()
             .await
-            .map_err(|e| HealthError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::HealthError(format!("{:?}", e)))?;
 
         if health_response.status != "healthy" {
-            return Err(HealthError::Unhealthy(health_response.status));
+            return Err(JitoError::HealthError(health_response.status));
         }
 
         Ok(health_response)
@@ -522,12 +483,6 @@ pub struct StatisticsClient {
     client: Client,
 }
 
-#[derive(Debug)]
-pub enum StatisticsError {
-    RequestFailed(String),
-    ApiError(String),
-}
-
 #[derive(Debug, Deserialize)]
 pub struct StatsResponse {
     pub bundles_sent: u64,
@@ -543,30 +498,30 @@ impl StatisticsClient {
             client: Client::new(),
         }
     }
-    pub async fn get_statistics(&self) -> Result<StatsResponse, StatisticsError> {
+    pub async fn get_statistics(&self) -> Result<StatsResponse, JitoError<String>> {
         let response = self
             .client
             .get(STATISTICS_RPC)
             .send()
             .await
-            .map_err(|e| StatisticsError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::StatisticsError(format!("{:?}", e)))?;
         if !response.status().is_success() {
-            return Err(StatisticsError::ApiError(format!(
+            return Err(JitoError::StatisticsError(format!(
                 "HTTP {}: {}",
                 response.status(),
                 response
                     .text()
                     .await
-                    .map_err(|e| StatisticsError::ApiError(format!("{:?}", e)))?
+                    .map_err(|e| JitoError::StatisticsError(format!("{:?}", e)))?
             )));
         }
         let stats_response: StatsResponse = response
             .json()
             .await
-            .map_err(|e| StatisticsError::ApiError(format!("{:?}", e)))?;
+            .map_err(|e| JitoError::StatisticsError(format!("{:?}", e)))?;
         Ok(stats_response)
     }
-    pub async fn get_success_rate(&self) -> Result<f64, StatisticsError> {
+    pub async fn get_success_rate(&self) -> Result<f64, JitoError<String>> {
         let stats = self.get_statistics().await?;
         Ok(stats.success_rate)
     }
