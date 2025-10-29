@@ -14,6 +14,7 @@ pub mod types;
 use crate::types::{JitoError, JitoResult};
 use serde::Deserialize;
 use solana_network_sdk::Solana;
+use solana_network_sdk::tool::token::safe_sol_to_lamports;
 use solana_sdk::{
     message::Message, pubkey::Pubkey, signature::Keypair, signer::Signer, transaction::Transaction,
 };
@@ -167,8 +168,8 @@ pub struct ArbitrageOpportunity {
 impl Default for ArbitrageConfig {
     fn default() -> Self {
         Self {
-            min_profit_lamports: 10_000, // 0.00001 SOL
-            max_slippage_bps: 50,        // 0.5%
+            min_profit_lamports: safe_sol_to_lamports(0.00001).unwrap_or(10_000), // 0.00001 SOL
+            max_slippage_bps: 50,                                                 // 0.5%
             max_retries: 3,
             tip_percentage: 0.1, // 10% of profit
         }
@@ -178,9 +179,9 @@ impl Default for ArbitrageConfig {
 impl Default for BackrunConfig {
     fn default() -> Self {
         Self {
-            min_priority_fee: 50_000, // 0.00005 SOL
+            min_priority_fee: safe_sol_to_lamports(0.00005).unwrap_or(50_000), // 0.00005 SOL
             max_transactions: 5,
-            profit_threshold: 5_000, // 0.000005 SOL
+            profit_threshold: safe_sol_to_lamports(0.000005).unwrap_or(5_000), // 0.000005 SOL
         }
     }
 }

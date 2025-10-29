@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::Jito;
 use crate::types::JitoError;
+use solana_network_sdk::tool::token;
 use solana_program::example_mocks::solana_sdk::system_instruction;
 use solana_sdk::message::Instruction;
 use solana_sdk::{
@@ -40,10 +41,13 @@ impl Bundle {
         token_mint: Pubkey,
         from_token_account: Pubkey,
         to_token_account: Pubkey,
-        amount: u64,
+        ui_amount: f64,
+        decimals: u8,
         tip_account: Option<Pubkey>,
         tip_amount: Option<u64>,
     ) -> Result<String, JitoError<String>> {
+        let raw_amount = token::safe_ui_to_raw_result(ui_amount, decimals)
+            .map_err(|e| JitoError::BundleError(e))?;
         // Get the latest blockhash
         let recent_blockhash = self
             .jito
@@ -59,7 +63,7 @@ impl Bundle {
             &to_token_account,
             &wallet.pubkey(),
             &[],
-            amount,
+            raw_amount,
         )
         .map_err(|e| JitoError::Error(format!("{:?}", e)))?;
         let message = Message::new_with_blockhash(

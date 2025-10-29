@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::ArbitrageOpportunity;
 use crate::Jito;
 use crate::JitoError;
+use solana_network_sdk::tool::token;
 use solana_program::example_mocks::solana_sdk::system_instruction;
 use solana_sdk::signer::Signer;
 use solana_sdk::{message::Message, pubkey::Pubkey, signature::Keypair, transaction::Transaction};
@@ -55,9 +56,13 @@ pub async fn build_tip_transaction(
     Ok(Transaction::new(&[wallet], message, recent_blockhash))
 }
 
-// calculate optimal tip
+/// calculate optimal tip
 fn cal_optimal_tip(expected_profit: u64, network_congestion: f64, tip_percentage: f64) -> u64 {
-    let base_tip = (expected_profit as f64 * tip_percentage).min(1_000_000.0) as u64;
+    // Basic tip = a percentage of expected profit
+    let base_tip =
+        token::calculate_percentage(expected_profit, tip_percentage * 100.0).unwrap_or(50_000); // default 0.00005 SOL
+    // Network congestion coefficient = 1 + congestion level
     let congestion_multiplier = 1.0 + network_congestion;
+    // Final tip = Basic tip × Congestion factor
     (base_tip as f64 * congestion_multiplier) as u64
 }
