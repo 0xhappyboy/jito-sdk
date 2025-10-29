@@ -1676,7 +1676,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "jito-sdk"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "base64 0.21.7",
  "bincode 2.0.1",
@@ -3950,9 +3950,9 @@ dependencies = [
 
 [[package]]
 name = "solana-network-sdk"
-version = "0.2.0"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc156737bb370ce2ad90a307ae86fc38d02937958f66982e0eb926bb5714cb52"
+checksum = "5673556a26b65f647ec387dec19c540807f936d55714ea0dd53e40534522f027"
 dependencies = [
  "bs58",
  "bytemuck",
