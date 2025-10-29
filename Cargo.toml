@@ -19,3 +19,8 @@ solana-sdk = "3.0.0"
 bs58 = "0.5"
 base64 = "0.21"
 bincode = "2.0.1"
+solana-program = "3.0.0"
+log = "0.4.28"
+spl-token = { version = "9.0.0", features = ["no-entrypoint"] }
+spl-token-interface = "2.0.0"
+ 

@@ -1681,11 +1681,15 @@ dependencies = [
  "base64 0.21.7",
  "bincode 2.0.1",
  "bs58",
+ "log",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
  "solana-network-sdk",
+ "solana-program",
  "solana-sdk",
+ "spl-token 9.0.0",
+ "spl-token-interface",
  "tokio",
 ]
 
@@ -3958,7 +3962,7 @@ dependencies = [
  "solana-program",
  "solana-sdk",
  "solana-transaction-status",
- "spl-token",
+ "spl-token 8.0.0",
  "thiserror 1.0.69",
  "tokio",
 ]
@@ -5388,6 +5392,34 @@ dependencies = [
  "solana-rent 2.2.1",
  "solana-sdk-ids 2.2.1",
  "solana-sysvar 2.3.0",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "spl-token"
+version = "9.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "878b0183d51fcd8a53e1604f4c13321894cf53227e6773c529b0d03d499a8dfd"
+dependencies = [
+ "arrayref",
+ "bytemuck",
+ "num-derive",
+ "num-traits",
+ "num_enum",
+ "solana-account-info 3.0.0",
+ "solana-cpi 3.0.0",
+ "solana-instruction 3.0.0",
+ "solana-msg 3.0.0",
+ "solana-program-entrypoint 3.1.0",
+ "solana-program-error 3.0.0",
+ "solana-program-memory 3.0.0",
+ "solana-program-option 3.0.0",
+ "solana-program-pack 3.0.0",
+ "solana-pubkey 3.0.0",
+ "solana-rent 3.0.0",
+ "solana-sdk-ids 3.0.0",
+ "solana-sysvar 3.0.0",
+ "spl-token-interface",
  "thiserror 2.0.17",
 ]
 
