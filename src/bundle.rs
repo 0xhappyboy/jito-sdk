@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::Jito;
 use crate::types::JitoError;
 use solana_program::example_mocks::solana_sdk::system_instruction;
@@ -7,12 +9,14 @@ use solana_sdk::{
 };
 
 pub struct Bundle {
-    jito: Jito,
+    jito: Arc<Jito>,
 }
 impl Bundle {
     /// create a new Bundler
     pub fn new(jito: Jito) -> Self {
-        Self { jito }
+        Self {
+            jito: Arc::new(jito),
+        }
     }
 
     /// Simple bundled transaction functionality - send any transaction package
@@ -241,7 +245,6 @@ impl TokenTransferRequest {
     }
 }
 
-/// 捆绑交易配置
 #[derive(Debug, Clone)]
 pub struct BundleConfig {
     pub tip_account: Option<Pubkey>,
@@ -255,7 +258,7 @@ impl Default for BundleConfig {
         Self {
             tip_account: None,
             tip_amount: None,
-            priority_fee: Some(50_000), // 默认优先级费用
+            priority_fee: Some(50_000),
             max_retries: 3,
         }
     }
